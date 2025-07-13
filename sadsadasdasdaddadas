@@ -1,0 +1,162 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+-- 📁 Create Inventory folder inside player (client-side visual inventory)
+local function setupInventory()
+	local inventory = player:FindFirstChild("VisualPetInventory")
+	if not inventory then
+		inventory = Instance.new("Folder")
+		inventory.Name = "VisualPetInventory"
+		inventory.Parent = player
+	end
+	return inventory
+end
+
+local inventory = setupInventory()
+
+-- GUI Setup
+local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+screenGui.Name = "VisualPetInventoryUI"
+
+-- Duplicate Button
+local duplicateButton = Instance.new("TextButton")
+duplicateButton.Size = UDim2.new(0, 200, 0, 50)
+duplicateButton.Position = UDim2.new(0.5, -100, 0, 10)
+duplicateButton.BackgroundColor3 = Color3.new(0, 0, 0)
+duplicateButton.TextColor3 = Color3.new(1, 1, 1)
+duplicateButton.Text = "Duplicate Pet"
+duplicateButton.Font = Enum.Font.SourceSansBold
+duplicateButton.TextSize = 22
+duplicateButton.Parent = screenGui
+
+-- Status Label
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(0, 220, 0, 30)
+statusLabel.Position = UDim2.new(0.5, -110, 0, 65)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.new(1, 1, 1)
+statusLabel.TextScaled = true
+statusLabel.Font = Enum.Font.SourceSansBold
+statusLabel.Text = ""
+statusLabel.Parent = screenGui
+
+-- 🎨 Create default visual pet
+local function createDefaultPet()
+	local model = Instance.new("Model")
+	model.Name = "Fluffy"
+
+	local part = Instance.new("Part")
+	part.Size = Vector3.new(2, 2, 2)
+	part.Position = Vector3.new(0, 5, 0)
+	part.Anchored = true
+	part.BrickColor = BrickColor.Random()
+	part.Name = "Body"
+	part.Parent = model
+
+	model.PrimaryPart = part
+
+	local petTag = Instance.new("BoolValue")
+	petTag.Name = "PetTag"
+	petTag.Value = true
+	petTag.Parent = model
+
+	local weight = Instance.new("NumberValue")
+	weight.Name = "Weight"
+	weight.Value = 5.6
+	weight.Parent = model
+
+	local stats = Instance.new("Folder")
+	stats.Name = "Stats"
+	stats.Parent = model
+
+	local stat1 = Instance.new("NumberValue")
+	stat1.Name = "Speed"
+	stat1.Value = 12
+	stat1.Parent = stats
+
+	local stat2 = Instance.new("NumberValue")
+	stat2.Name = "Happiness"
+	stat2.Value = 100
+	stat2.Parent = stats
+
+	return model
+end
+
+-- 📊 Create Stats UI
+local function makeStatsGui(pet)
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.new(0, 200, 0, 100)
+	gui.StudsOffset = Vector3.new(0, 3, 0)
+	gui.AlwaysOnTop = true
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextScaled = true
+	label.Font = Enum.Font.SourceSansBold
+	label.Parent = gui
+
+	local text = "Name: " .. pet.Name
+	if pet:FindFirstChild("Weight") then
+		text = text .. "\nWeight: " .. tostring(pet.Weight.Value) .. " kg"
+	end
+	if pet:FindFirstChild("Stats") then
+		for _, stat in ipairs(pet.Stats:GetChildren()) do
+			text = text .. "\n" .. stat.Name .. ": " .. tostring(stat.Value)
+		end
+	end
+
+	label.Text = text
+	return gui
+end
+
+-- 🪄 Duplicate the pet into inventory
+local function duplicatePetToInventory(originalPet)
+	local clone = originalPet:Clone()
+	clone.Name = originalPet.Name .. "_Copy_" .. tostring(#inventory:GetChildren() + 1)
+
+	-- Optional: add a stat label even inside inventory (for debug)
+	local tag = Instance.new("StringValue")
+	tag.Name = "Location"
+	tag.Value = "Inventory"
+	tag.Parent = clone
+
+	clone.Parent = inventory
+end
+
+-- 🐾 Show a pet visibly in front of the player (held visual pet)
+local heldPet = createDefaultPet()
+heldPet.Name = "MyPet"
+heldPet.Parent = workspace
+
+local heldGui = makeStatsGui(heldPet)
+heldGui.Parent = heldPet.PrimaryPart
+
+-- 🧲 Position held pet in front of player
+RunService.RenderStepped:Connect(function()
+	local char = player.Character
+	if char and char:FindFirstChild("Head") and heldPet and heldPet.PrimaryPart then
+		local head = char.Head
+		local pos = head.Position + head.CFrame.LookVector * 4 + Vector3.new(0, 1, 0)
+		heldPet:SetPrimaryPartCFrame(CFrame.new(pos))
+	end
+end)
+
+-- 🔘 When player clicks "Duplicate Pet"
+duplicateButton.MouseButton1Click:Connect(function()
+	if heldPet then
+		statusLabel.Text = "Adding to inventory..."
+		wait(0.5)
+		duplicatePetToInventory(heldPet)
+		statusLabel.Text = "✅ Added!"
+		wait(1)
+		statusLabel.Text = ""
+	else
+		statusLabel.Text = "No pet to duplicate!"
+		wait(2)
+		statusLabel.Text = ""
+	end
+end)
