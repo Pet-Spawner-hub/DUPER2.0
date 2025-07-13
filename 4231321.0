@@ -1,0 +1,11 @@
+-- Server-side example to listen for AddPetToInventory
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local addPetEvent = ReplicatedStorage:WaitForChild("AddPetToInventory")
+
+addPetEvent.OnServerEvent:Connect(function(player, petData)
+	-- Here you add the pet to the player's real inventory system
+	-- Example (pseudo):
+	-- player.Inventory:AddPet(petData.Name, petData.Age, petData.Size)
+	print(player.Name .. " added pet to inventory:", petData.Name, petData.Age, petData.Size)
+	-- Your inventory logic here
+end)
