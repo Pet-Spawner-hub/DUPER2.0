@@ -1,3 +1,109 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+-- Remote event to request server inventory update
+local addPetEvent = ReplicatedStorage:WaitForChild("AddPetToInventory")
+
+-- Create GUI
+local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+screenGui.Name = "PetDupeUI"
+
+local duplicateButton = Instance.new("TextButton")
+duplicateButton.Size = UDim2.new(0, 200, 0, 50)
+duplicateButton.Position = UDim2.new(0.5, -100, 0, 10)
+duplicateButton.BackgroundColor3 = Color3.new(0, 0, 0)
+duplicateButton.TextColor3 = Color3.new(1, 1, 1)
+duplicateButton.Text = "Duplicate Pet"
+duplicateButton.Font = Enum.Font.SourceSansBold
+duplicateButton.TextSize = 22
+duplicateButton.Draggable = true
+duplicateButton.Active = true
+duplicateButton.Parent = screenGui
+
+local function getHeldPet()
+	local char = player.Character
+	if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
+
+	for _, model in ipairs(workspace:GetChildren()) do
+		if model:IsA("Model") and model:FindFirstChild("Body") and model:FindFirstChild("PetName") then
+			local primary = model.PrimaryPart or model:FindFirstChild("Body")
+			if primary and (primary.Position - char.HumanoidRootPart.Position).Magnitude < 6 then
+				return model
+			end
+		end
+	end
+	return nil
+end
+
+local function createVisualDuplicate(originalPet)
+	local clone = originalPet:Clone()
+	clone.Name = originalPet.Name .. "_Visual"
+	clone.Parent = workspace
+
+	for _, part in ipairs(clone:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.Anchored = true
+			part.CanCollide = false
+		end
+	end
+
+	return clone
+end
+
+
+local placing = false
+local currentVisualPet = nil
+
+local function startPlacing(pet)
+	if not pet or not pet.PrimaryPart then return end
+
+	placing = true
+	currentVisualPet = pet
+
+	local conn
+	conn = RunService.RenderStepped:Connect(function()
+		if not placing then conn:Disconnect() return end
+		local pos = mouse.Hit.Position + Vector3.new(0, pet.PrimaryPart.Size.Y/2, 0)
+		pet:SetPrimaryPartCFrame(CFrame.new(pos))
+	end)
+
+	local clickConn
+	clickConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then return end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 and placing then
+			placing = false
+			currentVisualPet = nil
+			conn:Disconnect()
+			clickConn:Disconnect()
+		end
+	end)
+end
+
+duplicateButton.MouseButton1Click:Connect(function()
+	local pet = getHeldPet()
+	if pet then
+		-- Create visual duplicate
+		local clone = createVisualDuplicate(pet)
+
+		-- Start placing visual pet in the world
+		startPlacing(clone)
+
+		-- Send request to server to add pet to real inventory
+		local petData = {
+			Name = pet:FindFirstChild("PetName") and pet.PetName.Value or pet.Name,
+			Age = pet:FindFirstChild("Age") and pet.Age.Value or 0,
+			Size = pet:FindFirstChild("Size") and pet.Size.Value or 1,
+		}
+		addPetEvent:FireServer(petData)
+	else
+		warn("No pet detected near player to duplicate")
+	end
+end)
 -- Server-side example to listen for AddPetToInventory
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local addPetEvent = ReplicatedStorage:WaitForChild("AddPetToInventory")
