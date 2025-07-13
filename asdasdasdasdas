@@ -1,0 +1,159 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+-- GUI Setup
+local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+screenGui.Name = "DuplicatePetUI"
+
+-- Duplicate Button (Top Center)
+local duplicateButton = Instance.new("TextButton")
+duplicateButton.Size = UDim2.new(0, 180, 0, 40)
+duplicateButton.Position = UDim2.new(0.5, -90, 0, 10)
+duplicateButton.BackgroundColor3 = Color3.new(0, 0, 0)
+duplicateButton.TextColor3 = Color3.new(1, 1, 1)
+duplicateButton.Text = "Duplicate Pet"
+duplicateButton.Font = Enum.Font.SourceSansBold
+duplicateButton.TextSize = 20
+duplicateButton.Parent = screenGui
+duplicateButton.Active = true
+duplicateButton.Draggable = true
+
+-- Duplicating Status Message
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(0, 200, 0, 30)
+statusLabel.Position = UDim2.new(0.5, -100, 0, 60)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.new(1, 1, 1)
+statusLabel.TextScaled = true
+statusLabel.Font = Enum.Font.SourceSansBold
+statusLabel.Text = ""
+statusLabel.Parent = screenGui
+
+-- Smarter Pet Detection
+local function getHeldPet()
+	local character = player.Character
+	if not character then return nil end
+
+	-- Check direct children of character
+	for _, child in ipairs(character:GetChildren()) do
+		if child:IsA("Model") and child:FindFirstChild("PetTag") then
+			return child
+		end
+	end
+
+	-- Check tools or other attachments (held items)
+	for _, tool in ipairs(character:GetChildren()) do
+		if tool:IsA("Tool") then
+			for _, part in ipairs(tool:GetDescendants()) do
+				if part:IsA("Model") and part:FindFirstChild("PetTag") then
+					return part
+				end
+			end
+		end
+	end
+
+	-- Last-resort: check anything attached by Welds or Motor6Ds
+	for _, desc in ipairs(character:GetDescendants()) do
+		if desc:IsA("Model") and desc:FindFirstChild("PetTag") then
+			return desc
+		end
+	end
+
+	return nil
+end
+
+-- Create Stats UI
+local function createStatsDisplay(pet)
+	local statsGui = Instance.new("BillboardGui")
+	statsGui.Size = UDim2.new(0, 200, 0, 100)
+	statsGui.StudsOffset = Vector3.new(0, 3, 0)
+	statsGui.AlwaysOnTop = true
+	statsGui.Name = "StatsDisplay"
+
+	local textLabel = Instance.new("TextLabel", statsGui)
+	textLabel.Size = UDim2.new(1, 0, 1, 0)
+	textLabel.BackgroundTransparency = 1
+	textLabel.TextColor3 = Color3.new(1, 1, 1)
+	textLabel.TextScaled = true
+	textLabel.Font = Enum.Font.SourceSansBold
+
+	-- Build stat text
+	local displayText = "Name: " .. pet.Name
+	if pet:FindFirstChild("Weight") then
+		displayText = displayText .. "\nWeight: " .. tostring(pet.Weight.Value) .. " kg"
+	end
+	if pet:FindFirstChild("Stats") then
+		for _, stat in ipairs(pet.Stats:GetChildren()) do
+			displayText = displayText .. "\n" .. stat.Name .. ": " .. tostring(stat.Value)
+		end
+	end
+
+	textLabel.Text = displayText
+	return statsGui
+end
+
+-- Make Pet Draggable
+local function enablePetDragging(model)
+	local dragging = false
+
+	mouse.Button1Down:Connect(function()
+		if mouse.Target and mouse.Target:IsDescendantOf(model) then
+			dragging = true
+		end
+	end)
+
+	mouse.Button1Up:Connect(function()
+		dragging = false
+	end)
+
+	game:GetService("RunService").RenderStepped:Connect(function()
+		if dragging and model.PrimaryPart then
+			local targetPos = mouse.Hit.Position + Vector3.new(0, 2, 0)
+			model:SetPrimaryPartCFrame(CFrame.new(targetPos))
+		end
+	end)
+end
+
+-- Duplicate the Pet
+local function duplicatePet(originalPet)
+	local clone = originalPet:Clone()
+	clone.Name = originalPet.Name .. "_Duplicate"
+
+	if not clone.PrimaryPart then
+		local primary = clone:FindFirstChildWhichIsA("BasePart")
+		if primary then
+			clone.PrimaryPart = primary
+		else
+			warn("No PrimaryPart found in duplicated pet.")
+			return
+		end
+	end
+
+	local rootPart = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not rootPart then return end
+
+	clone:SetPrimaryPartCFrame(rootPart.CFrame * CFrame.new(3, 0, 0))
+	clone.Parent = workspace
+
+	local statsGui = createStatsDisplay(originalPet)
+	statsGui.Parent = clone.PrimaryPart
+
+	enablePetDragging(clone)
+end
+
+-- Button Click Logic
+duplicateButton.MouseButton1Click:Connect(function()
+	local heldPet = getHeldPet()
+	if heldPet then
+		statusLabel.Text = "Duplicating pet..."
+		wait(1)
+		duplicatePet(heldPet)
+		statusLabel.Text = ""
+	else
+		statusLabel.Text = "No pet held!"
+		wait(2)
+		statusLabel.Text = ""
+	end
+end)
